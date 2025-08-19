@@ -99,6 +99,15 @@ resource "aws_iam_role_policy" "agentcore_runtime_policy" {
         Resource = "*"
       },
       {
+        Sid    = "XRayTraceDestination"
+        Effect = "Allow"
+        Action = [
+          "xray:UpdateTraceSegmentDestination",
+          "xray:GetTraceSegmentDestination"
+        ]
+        Resource = "*"
+      },
+      {
         Effect   = "Allow"
         Resource = "*"
         Action   = "cloudwatch:PutMetricData"
@@ -118,7 +127,8 @@ resource "aws_iam_role_policy" "agentcore_runtime_policy" {
         ]
         Resource = [
           "arn:aws:bedrock-agentcore:${var.aws_region}:${var.account_id}:workload-identity-directory/default",
-          "arn:aws:bedrock-agentcore:${var.aws_region}:${var.account_id}:workload-identity-directory/default/workload-identity/${var.agent_name}-*"
+          "arn:aws:bedrock-agentcore:${var.aws_region}:${var.account_id}:workload-identity-directory/default/workload-identity/${var.agent_name}-*",
+          "arn:aws:bedrock-agentcore:${var.aws_region}:${var.account_id}:workload-identity-directory/default/workload-identity/mcp_agentrock_basic_server-*"
         ]
       },
       {
@@ -135,4 +145,98 @@ resource "aws_iam_role_policy" "agentcore_runtime_policy" {
       }
     ]
   })
-} 
+}
+
+# Cognito User Pool for MCP authentication
+resource "aws_cognito_user_pool" "mcp_auth" {
+  name = "mcp-agentcore-pool-${var.agent_name}"
+
+  # Password policy
+  password_policy {
+    minimum_length    = 8
+    require_lowercase = true
+    require_numbers   = true
+    require_symbols   = false
+    require_uppercase = true
+  }
+
+  # User pool configuration
+  auto_verified_attributes = ["email"]
+  username_attributes      = ["email"]
+
+  # Schema for user attributes
+  schema {
+    attribute_data_type      = "String"
+    developer_only_attribute = false
+    mutable                  = true
+    name                     = "email"
+    required                 = true
+
+    string_attribute_constraints {
+      min_length = 1
+      max_length = 256
+    }
+  }
+
+  tags = {
+    Name        = "MCP AgentCore Authentication"
+    Environment = "development"
+    Purpose     = "MCP server authentication"
+  }
+}
+
+# Cognito User Pool Client
+resource "aws_cognito_user_pool_client" "mcp_client" {
+  name         = "mcp-agentcore-client-${var.agent_name}"
+  user_pool_id = aws_cognito_user_pool.mcp_auth.id
+
+  # Authentication flows
+  explicit_auth_flows = [
+    "ALLOW_USER_PASSWORD_AUTH",
+    "ALLOW_REFRESH_TOKEN_AUTH",
+    "ALLOW_USER_SRP_AUTH"
+  ]
+
+  # Token validity
+  access_token_validity  = 24 # 24 hours
+  refresh_token_validity = 30 # 30 days
+  id_token_validity      = 24 # 24 hours
+
+  # Token validity units
+  token_validity_units {
+    access_token  = "hours"
+    id_token      = "hours"
+    refresh_token = "days"
+  }
+
+  # Prevent user existence errors
+  prevent_user_existence_errors = "ENABLED"
+
+  # Don't generate a client secret (for simplicity)
+  generate_secret = false
+}
+
+# Create a test user (optional, can be created manually)
+resource "aws_cognito_user" "test_user" {
+  user_pool_id = aws_cognito_user_pool.mcp_auth.id
+  username     = var.test_user_email  # Use email as username since username_attributes = ["email"]
+
+  attributes = {
+    email          = var.test_user_email
+    email_verified = "true"
+  }
+
+  # Set temporary password - user will be forced to change on first login
+  temporary_password = var.test_user_temp_password
+  message_action     = "SUPPRESS" # Don't send welcome email
+
+  lifecycle {
+    ignore_changes = [
+      temporary_password,
+      attributes["email"]
+    ]
+  }
+}
+
+# Note: Password will be set via AWS CLI after user creation
+# Run: aws cognito-idp admin-set-user-password --user-pool-id <pool-id> --username testuser --password <password> --permanent 
