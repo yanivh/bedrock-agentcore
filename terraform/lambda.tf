@@ -53,11 +53,11 @@ resource "aws_iam_role_policy" "lambda_policy" {
 resource "aws_lambda_function" "bedrock_agentcore" {
   filename         = "bedrock_agentcore_lambda.zip"
   function_name    = "bedrock-agentcore-lambda-${var.agent_name}"
-  role            = aws_iam_role.lambda_role.arn
-  handler         = "lambda_function.lambda_handler"
-  runtime         = "python3.11"
-  timeout         = 60
-  memory_size     = 256
+  role             = aws_iam_role.lambda_role.arn
+  handler          = "lambda_function.lambda_handler"
+  runtime          = "python3.11"
+  timeout          = 60
+  memory_size      = 256
   source_code_hash = filebase64sha256("bedrock_agentcore_lambda.zip")
 
   environment {
@@ -115,8 +115,8 @@ resource "aws_api_gateway_integration" "lambda" {
   http_method = aws_api_gateway_method.proxy.http_method
 
   integration_http_method = "POST"
-  type                   = "AWS_PROXY"
-  uri                    = aws_lambda_function.bedrock_agentcore.invoke_arn
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.bedrock_agentcore.invoke_arn
 }
 
 resource "aws_lambda_permission" "apigw" {
