@@ -142,6 +142,24 @@ resource "aws_iam_role_policy" "agentcore_runtime_policy" {
           "arn:aws:bedrock:*::foundation-model/*",
           "arn:aws:bedrock:${var.aws_region}:${var.account_id}:*"
         ]
+      },
+      {
+        Sid    = "GlueDataCatalogAccess"
+        Effect = "Allow"
+        Action = [
+          "glue:GetTable",
+          "glue:GetTables",
+          "glue:GetDatabase",
+          "glue:GetDatabases",
+          "glue:GetPartition",
+          "glue:GetPartitions",
+          "glue:BatchGetPartition"
+        ]
+        Resource = [
+          "arn:aws:glue:*:${var.account_id}:catalog",
+          "arn:aws:glue:*:${var.account_id}:database/*",
+          "arn:aws:glue:*:${var.account_id}:table/*/*"
+        ]
       }
     ]
   })
@@ -219,7 +237,7 @@ resource "aws_cognito_user_pool_client" "mcp_client" {
 # Create a test user (optional, can be created manually)
 resource "aws_cognito_user" "test_user" {
   user_pool_id = aws_cognito_user_pool.mcp_auth.id
-  username     = var.test_user_email  # Use email as username since username_attributes = ["email"]
+  username     = var.test_user_email # Use email as username since username_attributes = ["email"]
 
   attributes = {
     email          = var.test_user_email
