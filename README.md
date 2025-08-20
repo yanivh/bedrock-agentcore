@@ -191,6 +191,140 @@ Authentication tokens are automatically managed by the test scripts.
 "use list_glue_tables_in_database to get tables in database name b2b-data and region eu-west-1"
 ```
 
+## 🎯 Cursor Integration with MCP
+
+### 📝 **Setting up MCP in Cursor**
+
+Cursor can directly integrate with your deployed MCP agent using the `mcp.json` configuration file. This allows you to use your AWS Glue tools and other MCP functions directly within Cursor.
+
+**1. Locate the MCP configuration:**
+```bash
+# The mcp.json file is already configured in the project root
+cat mcp.json
+```
+
+**2. Copy MCP configuration to Cursor:**
+```bash
+# On macOS/Linux, copy to Cursor's MCP directory
+mkdir -p ~/.cursor/mcp
+cp mcp.json ~/.cursor/mcp/
+
+# On Windows
+mkdir %APPDATA%\Cursor\mcp
+copy mcp.json %APPDATA%\Cursor\mcp\
+```
+
+**3. Restart Cursor** to load the new MCP configuration.
+
+**4. Verify MCP integration in Cursor:**
+
+Once configured correctly, you'll see your MCP server and available tools in Cursor's interface:
+
+![Cursor MCP Integration](https://github.com/user-attachments/assets/bedrock-agentcore-mcp-tools.png)
+
+The interface shows:
+- ✅ **bedrock-agentcore-mcp** server connected
+- 🟢 **5 available tools**: `add_numbers`, `multiply_numbers`, `greet_user`, `get_glue_table_schema`, `list_glue_tables_in_database`
+- 🔧 **Ready to use** with `@bedrock-agentcore-mcp` prefix
+
+### 🔑 **Token Management**
+
+The `mcp.json` file contains a **Bearer token** that expires periodically. When the token expires, you'll need to generate a new one.
+
+**Current MCP Configuration:**
+```json
+{
+  "mcpServers": {
+    "bedrock-agentcore-mcp": {
+      "url": "https://bedrock-agentcore.us-east-1.amazonaws.com/runtimes/arn%3Aaws%3Abedrock-agentcore%3Aus-east-1%3A301581146302%3Aruntime%2Fmcp_agentrock_basic_server-r9jEKOHcJ5/invocations?qualifier=DEFAULT",
+      "headers": {
+        "Authorization": "Bearer <YOUR_TOKEN_HERE>",
+        "Content-Type": "application/json"
+      }
+    }
+  }
+}
+```
+
+### 🔄 **Refreshing Expired Tokens**
+
+When you get authentication errors in Cursor, follow these steps:
+
+**1. Generate a new Cognito token:**
+```bash
+cd starter-toolkit-mcp/
+python get_cognito_token.py --from-terraform --export
+```
+
+**2. Extract the new token:**
+```bash
+# The token will be saved to .bearer_token file
+cat .bearer_token
+```
+
+**3. Update mcp.json with the new token:**
+```bash
+# Option A: Manually edit mcp.json and replace the token in the Authorization header
+
+# Option B: Use sed to update automatically (Linux/macOS)
+NEW_TOKEN=$(cat .bearer_token)
+sed -i.bak "s/Bearer .*/Bearer $NEW_TOKEN\",/" mcp.json
+
+# Option C: Use PowerShell to update (Windows)
+$NEW_TOKEN = Get-Content .bearer_token
+(Get-Content mcp.json) -replace 'Bearer .*"', "Bearer $NEW_TOKEN`"" | Set-Content mcp.json
+```
+
+**4. Copy updated configuration to Cursor:**
+```bash
+# Copy the updated mcp.json to Cursor
+cp mcp.json ~/.cursor/mcp/
+```
+
+**5. Restart Cursor** to load the refreshed token.
+
+### 🧪 **Testing MCP in Cursor**
+
+Once configured, you can test the MCP integration directly in Cursor:
+
+**Example prompts to try:**
+```
+@bedrock-agentcore-mcp use list_glue_tables_in_database to get tables in database name b2b-data and region eu-west-1
+
+@bedrock-agentcore-mcp add numbers 15 and 25
+
+@bedrock-agentcore-mcp get schema for table b2b-reports-data-learning_activities in database b2b-data region eu-west-1
+```
+
+### 🚨 **Troubleshooting Token Issues**
+
+**Common error signs:**
+- `401 Unauthorized` errors in Cursor
+- `403 Forbidden` responses
+- `Token expired` messages
+
+**Quick token refresh script:**
+```bash
+#!/bin/bash
+cd starter-toolkit-mcp/
+echo "🔄 Refreshing MCP token..."
+python get_cognito_token.py --from-terraform --export
+NEW_TOKEN=$(cat .bearer_token)
+echo "📝 Updating mcp.json..."
+sed -i.bak "s/Bearer .*/Bearer $NEW_TOKEN\",/" ../mcp.json
+echo "📋 Copying to Cursor..."
+cp ../mcp.json ~/.cursor/mcp/
+echo "✅ Token refreshed! Restart Cursor to apply changes."
+```
+
+### 📅 **Token Lifecycle**
+
+- **Token Duration**: Cognito tokens typically expire after 24 hours
+- **Auto-refresh**: Currently manual, but can be automated with cron jobs
+- **Backup**: Keep the `get_cognito_token.py` script accessible for quick refreshes
+
+This integration allows you to leverage your deployed AWS Glue tools and other MCP functions directly within your Cursor development environment!
+
 ## 🔧 Configuration Details
 
 Looking at the `.bedrock_agentcore.yaml`, we can see:
